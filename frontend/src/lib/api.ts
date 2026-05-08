@@ -1,6 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const FASTAPI_URL = (import.meta.env.VITE_FASTAPI_URL as string | undefined) ?? 'http://localhost:8000';
+const FASTAPI_URL =
+  (import.meta.env.VITE_API_URL as string | undefined) ??
+  (import.meta.env.VITE_FASTAPI_URL as string | undefined) ??
+  'http://localhost:8000';
 
 async function authHeaders(): Promise<HeadersInit> {
   const { data } = await supabase.auth.getSession();
