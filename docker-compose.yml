@@ -1,0 +1,42 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: cns-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      - MOCK_AI=${MOCK_AI:-false}
+      - FACE_THRESHOLD=${FACE_THRESHOLD:-0.5}
+      - SPOOF_THRESHOLD=${SPOOF_THRESHOLD:-0.70}
+      - DB_SCHEMA=${DB_SCHEMA:-public}
+    volumes:
+      - ./backend:/app/backend
+      - ./ai:/app/ai
+    command: uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - cns-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: cns-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    depends_on:
+      - backend
+    networks:
+      - cns-network
+
+networks:
+  cns-network:
+    driver: bridge

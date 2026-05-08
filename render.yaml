@@ -1,0 +1,14 @@
+# Render Deployment Configuration
+# Reference: https://render.com/docs
+
+# This file tells Render how to build and run the application
+
+# Build command - executed to prepare the application
+build = "npm --prefix frontend ci && npm --prefix frontend run build"
+
+# Start command - executed to run the application  
+start = "serve -s frontend/dist -l 3000"
+
+# Environment variables can be set in Render dashboard
+# Frontend will be built as a static site
+# Backend should be deployed as a separate Web Service
