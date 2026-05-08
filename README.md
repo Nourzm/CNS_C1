@@ -6,46 +6,52 @@ An AI-powered, face-recognition attendance system built for ENSIA. Teachers open
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui |
-| State / data | TanStack Query (react-query) + React Router v6 |
-| Charts | Recharts |
-| Auth & DB | Supabase (Postgres + pgvector + RLS + Auth) |
-| AI backend | Python FastAPI + InsightFace `buffalo_l` + OpenCV |
-| Liveness | ONNX slot (heuristic fallback: sharpness · saturation · motion) |
-| Tests | Vitest (frontend) + pytest (backend) + GitHub Actions CI |
+| Layer        | Technology                                                      |
+| ------------ | --------------------------------------------------------------- |
+| Frontend     | React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui         |
+| State / data | TanStack Query (react-query) + React Router v6                  |
+| Charts       | Recharts                                                        |
+| Auth & DB    | Supabase (Postgres + pgvector + RLS + Auth)                     |
+| AI backend   | Python FastAPI + InsightFace `buffalo_l` + OpenCV               |
+| Liveness     | ONNX slot (heuristic fallback: sharpness · saturation · motion) |
+| Tests        | Vitest (frontend) + pytest (backend) + GitHub Actions CI        |
 
 ---
 
 ## Features
 
 ### Auth & Roles
+
 - Sign-up restricted to `@ensia.edu.dz` emails — enforced at the DB trigger level
 - Email OTP verification required before any DB row is created
 - Three roles: **admin**, **lecturer**, **teacher** — chosen at sign-up, enforced by Row-Level Security on every table
 - First user automatically becomes admin
 
 ### Dashboard
+
 - 11 live widgets: attendance rate, active modules, sessions today, spoof alerts, weekly trend chart, per-module breakdown, attendance heatmap, student ranking, today's schedule, live session card, system health badge
 - Admins see all data; lecturers/teachers see only their own modules
 
 ### Student Management
+
 - Register students with webcam — photo saved + 512-d face embedding stored in pgvector
 - Bulk CSV import with preview, validation, and error reporting
 - Student profile: photo/avatar, group badges, attendance stats, weekly trend chart, full session history
 
 ### Modules & Groups
+
 - Create modules with academic year and assigned lecturer
 - Assign groups to modules with a specific teacher per group
 
 ### Live Attendance
+
 - Select a session → camera opens → faces recognised at ~1 fps
 - Each match shows full name + matricule + confidence % — clickable link to student profile
 - Anti-spoofing heuristic on every frame; spoof attempts logged separately
 - Manual override available in session detail with full audit trail
 
 ### History & Reports
+
 - Attendance history with module/group filters — CSV export
 - Spoof log with CSV export
 - Audit log — every manual status change recorded with actor, timestamp, before/after
@@ -110,6 +116,7 @@ Browser ──→ FastAPI /embed /recognize (Bearer JWT)
 ## Running Locally
 
 ### Prerequisites
+
 - Node.js 18+
 - Python 3.10+
 - A Supabase project with the schema applied (see `supabase/` folder)
@@ -139,6 +146,7 @@ uvicorn app:app --reload      # → http://localhost:8000
 ### Environment variables
 
 **`frontend/.env`**
+
 ```
 VITE_SUPABASE_URL=https://<ref>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
@@ -146,6 +154,7 @@ VITE_FASTAPI_URL=http://localhost:8000
 ```
 
 **`backend/.env`**
+
 ```
 SUPABASE_URL=https://<ref>.supabase.co
 SUPABASE_SERVICE_KEY=<service role key>
@@ -156,33 +165,4 @@ SPOOF_THRESHOLD=0.70
 ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-Set `MOCK_AI=true` to skip the InsightFace model entirely (returns a random 512-d unit vector) — useful for frontend-only development.
-
 ---
-
-## Running Tests
-
-```bash
-# Frontend (Vitest)
-cd frontend && npm run test
-
-# Backend (pytest)
-cd backend && pytest tests/
-```
-
-CI runs both on every push via `.github/workflows/ci.yml`.
-
----
-
-## Known Limitations
-
-- **Anti-spoofing is heuristic-only.** The ONNX slot at `ai/anti_spoofing/model.onnx` is ready but the model file is not included. A high-quality phone-screen replay can defeat the current heuristic. Real fix: train Silent-Face-Anti-Spoofing on CASIA-SURF/OULU-NPU and export to ONNX.
-- **No mobile responsive layout** — designed for desktop browsers.
-- **No i18n** — French/Arabic not implemented.
-- **No deployed instance** — runs locally only.
-
----
-
-## Team
-
-ENSIA — CNS project, 2025–2026.

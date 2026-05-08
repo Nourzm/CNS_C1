@@ -5,9 +5,7 @@ ai/anti_spoofing/model.onnx for use by the backend.
 Prerequisites:
     pip install torch onnx requests
 
-Run once from the project root:
-    cd D:/CNS_C1
-    python ai/anti_spoofing/export_model.py
+Run once from the project root
 
 Output: ai/anti_spoofing/model.onnx
   Input  node: "input"  shape (batch, 3, 80, 80)  float32  range [0, 255] BGR
