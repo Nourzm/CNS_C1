@@ -1,5 +1,6 @@
 from typing import Optional
 import logging
+import threading
 import numpy as np
 from config import MOCK_AI, FACE_THRESHOLD
 from services.db_service import knn_search
@@ -9,22 +10,30 @@ log.setLevel(logging.INFO)
 
 _app = None
 _load_err: Optional[str] = None
+_load_lock = threading.Lock()
+_load_started = False
 
 
 def _ensure_loaded():
-    global _app, _load_err
-    if _app is not None or MOCK_AI:
+    global _app, _load_err, _load_started
+    if _app is not None or MOCK_AI or _load_err is not None:
         return
-    try:
-        log.info("Loading InsightFace buffalo_l (first call may take a while — downloads ~280MB)...")
-        from insightface.app import FaceAnalysis
-        a = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-        a.prepare(ctx_id=0, det_size=(640, 640))
-        _app = a
-        log.info("InsightFace loaded OK")
-    except Exception as e:
-        _load_err = repr(e)
-        log.error("InsightFace load failed: %s", _load_err)
+    with _load_lock:
+        if _app is not None or MOCK_AI or _load_err is not None:
+            return
+        if _load_started:
+            return
+        _load_started = True
+        try:
+            log.info("Loading InsightFace buffalo_l (first call may take a while — downloads ~280MB)...")
+            from insightface.app import FaceAnalysis
+            a = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+            a.prepare(ctx_id=0, det_size=(640, 640))
+            _app = a
+            log.info("InsightFace loaded OK")
+        except Exception as e:
+            _load_err = repr(e)
+            log.error("InsightFace load failed: %s", _load_err)
 
 
 def face_service_status():
