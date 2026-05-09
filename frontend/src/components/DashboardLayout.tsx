@@ -54,6 +54,7 @@ function AppSidebarContent({ role }: { role?: string | null }) {
 
   const isAdmin = role === "admin";
   const isLecturer = role === "lecturer";
+  const isTeacher = role === "teacher";
 
   const navItems = [
     {
@@ -73,7 +74,7 @@ function AppSidebarContent({ role }: { role?: string | null }) {
       title: "Register Student",
       url: "/students/register",
       icon: UserPlus,
-      show: isAdmin || isLecturer,
+      show: isAdmin || isLecturer || isTeacher,
     },
     { title: "Attendance", url: "/attendance", icon: Camera, show: !isAdmin },
     { title: "History", url: "/history", icon: History, show: true },
@@ -91,7 +92,7 @@ function AppSidebarContent({ role }: { role?: string | null }) {
       title: "Assignments",
       url: "/assignments",
       icon: Activity,
-      show: isAdmin,
+      show: isAdmin || isLecturer || isTeacher,
     },
     { title: "Security", url: "/security", icon: ShieldAlert, show: true },
     {
