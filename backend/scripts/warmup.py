@@ -8,14 +8,24 @@ Downloads ~280 MB to ~/.insightface/models/buffalo_l/.
 """
 import sys
 import time
+import traceback
 
-print("Warming up InsightFace buffalo_l (one-time download ~280 MB)...")
+print("[WARMUP] Starting InsightFace buffalo_l pre-download (~280 MB)...")
 try:
+    print("[WARMUP] Importing FaceAnalysis...")
     from insightface.app import FaceAnalysis
+    
+    print("[WARMUP] Creating FaceAnalysis instance (name=buffalo_l)...")
     t0 = time.time()
     app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+    
+    print("[WARMUP] Calling prepare(ctx_id=0, det_size=(640, 640))...")
     app.prepare(ctx_id=0, det_size=(640, 640))
-    print(f"OK in {time.time() - t0:.1f}s")
+    
+    elapsed = time.time() - t0
+    print(f"[WARMUP] SUCCESS in {elapsed:.1f}s")
+    sys.exit(0)
 except Exception as e:
-    print(f"FAIL: {e}")
+    print(f"[WARMUP] FAILED: {type(e).__name__}: {e}")
+    traceback.print_exc()
     sys.exit(1)

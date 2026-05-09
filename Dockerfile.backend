@@ -24,7 +24,9 @@ RUN rm -rf /root/.insightface /root/.cache/pip
 # Run one-time warmup in builder to pre-download the InsightFace model
 # This saves the model under /root/.insightface and we'll copy it into the
 # final runtime image below.
-RUN python /app/backend/scripts/warmup.py || true
+# NOTE: We do NOT use || true here — if warmup fails, we want the build to fail
+# so we can see the actual error.
+RUN python /app/backend/scripts/warmup.py
 
 # Runtime stage
 FROM python:3.11-slim
