@@ -1,9 +1,15 @@
 import { supabase } from '@/integrations/supabase/client';
 
+const DEFAULT_FASTAPI_URL =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:8000'
+    : 'https://cns-c1-1.onrender.com';
+
 const FASTAPI_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ??
   (import.meta.env.VITE_FASTAPI_URL as string | undefined) ??
-  'http://localhost:8000';
+  DEFAULT_FASTAPI_URL;
 
 async function authHeaders(): Promise<HeadersInit> {
   const { data } = await supabase.auth.getSession();
