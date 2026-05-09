@@ -18,6 +18,9 @@ COPY backend/ /app/backend/
 COPY ai/ /app/ai/
 COPY config/ /app/config/
 
+# Clean any corrupted model cache before warmup
+RUN rm -rf /root/.insightface /root/.cache/pip
+
 # Run one-time warmup in builder to pre-download the InsightFace model
 # This saves the model under /root/.insightface and we'll copy it into the
 # final runtime image below.
