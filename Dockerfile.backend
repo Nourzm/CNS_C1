@@ -13,6 +13,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
+# Copy application code into builder so warmup can run here during build
+COPY backend/ /app/backend/
+COPY ai/ /app/ai/
+COPY config/ /app/config/
+
+# Run one-time warmup in builder to pre-download the InsightFace model
+# This saves the model under /root/.insightface and we'll copy it into the
+# final runtime image below.
+RUN python /app/backend/scripts/warmup.py || true
+
 # Runtime stage
 FROM python:3.11-slim
 
@@ -26,6 +36,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy python packages from builder
 COPY --from=builder /root/.local /root/.local
+
+# Copy pre-downloaded InsightFace model from builder (if present)
+COPY --from=builder /root/.insightface /root/.insightface
 
 # Copy application code
 COPY backend/ /app/backend/
