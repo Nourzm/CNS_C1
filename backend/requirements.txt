@@ -8,3 +8,4 @@ opencv-python>=4.9
 supabase>=2.4
 insightface>=0.7
 onnxruntime>=1.17
+protobuf<4
