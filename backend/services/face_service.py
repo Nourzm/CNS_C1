@@ -27,13 +27,18 @@ def _ensure_loaded():
         try:
             log.info("Loading InsightFace buffalo_l (first call may take a while — downloads ~280MB)...")
             from insightface.app import FaceAnalysis
+            log.info("  → Instantiating FaceAnalysis...")
             a = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+            log.info("  → Calling prepare(ctx_id=0, det_size=(640, 640))...")
             a.prepare(ctx_id=0, det_size=(640, 640))
+            log.info("  → Prepare complete, model ready")
             _app = a
-            log.info("InsightFace loaded OK")
+            log.info("✓ InsightFace loaded OK")
         except Exception as e:
+            import traceback
             _load_err = repr(e)
-            log.error("InsightFace load failed: %s", _load_err)
+            log.error("✗ InsightFace load failed: %s", _load_err)
+            log.error("Traceback:\n%s", traceback.format_exc())
 
 
 def face_service_status():
