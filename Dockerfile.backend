@@ -28,6 +28,9 @@ RUN rm -rf /root/.insightface /root/.cache/pip
 # so we can see the actual error.
 RUN python /app/backend/scripts/warmup.py
 
+# Verify the model was downloaded
+RUN ls -lah /root/.insightface/ && du -sh /root/.insightface/ || echo "WARNING: Model not found after warmup!"
+
 # Runtime stage
 FROM python:3.11-slim
 
@@ -44,6 +47,9 @@ COPY --from=builder /root/.local /root/.local
 
 # Copy pre-downloaded InsightFace model from builder (if present)
 COPY --from=builder /root/.insightface /root/.insightface
+
+# Verify the model was copied to runtime
+RUN ls -lah /root/.insightface/ 2>/dev/null && echo "Model cached in runtime image" || echo "WARNING: Model not in runtime image!"
 
 # Copy application code
 COPY backend/ /app/backend/
