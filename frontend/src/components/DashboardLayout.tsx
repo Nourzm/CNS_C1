@@ -26,6 +26,7 @@ import {
   UserPlus,
   History,
   Activity,
+  CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -85,6 +86,7 @@ function AppSidebarContent({ role }: { role?: string | null }) {
       icon: UserPlus,
       show: isAdmin || isLecturer,
     },
+    { title: "Timetable", url: "/timetable", icon: CalendarDays, show: true },
   ].filter((i) => i.show);
 
   const securityItems = [
