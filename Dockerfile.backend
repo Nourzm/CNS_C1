@@ -1,9 +1,9 @@
-# Build stage
-FROM python:3.11-slim as builder
+# ── Build stage ───────────────────────────────────────────────────────────────
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# System deps needed to build/install packages
+# System deps needed to compile packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libopencv-dev \
@@ -13,13 +13,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
-# Copy application code + models
+# Copy application code
 COPY backend/ /app/backend/
-COPY ai/ /app/ai/
-COPY config/ /app/config/
+COPY ai/      /app/ai/
 
-# Pre-download InsightFace buffalo_sc at build time (~50 MB, fits free tier RAM).
-# buffalo_l (~280 MB) OOM-kills a 512 MB container; buffalo_sc is the right choice.
+# Pre-download InsightFace buffalo_sc at build time.
+# buffalo_sc: ~50 MB download, ~150 MB RAM — fits Render free tier (512 MB).
+# buffalo_l : ~280 MB download, ~500 MB RAM — OOM-kills the container.
 ENV INSIGHTFACE_HOME=/app/.insightface
 RUN python - <<'EOF'
 try:
@@ -28,6 +28,8 @@ try:
     a.prepare(ctx_id=0, det_size=(640, 640))
     print("buffalo_sc pre-downloaded OK")
 except Exception as e:
+    import os, pathlib
+    pathlib.Path("/app/.insightface").mkdir(parents=True, exist_ok=True)
     print(f"pre-download failed (will retry at runtime): {e}")
 EOF
 
@@ -49,9 +51,8 @@ COPY --from=builder /root/.local /root/.local
 # Application code
 COPY --from=builder /app/backend/ /app/backend/
 COPY --from=builder /app/ai/      /app/ai/
-COPY --from=builder /app/config/  /app/config/
 
-# Pre-downloaded InsightFace model cache
+# InsightFace model cache (always exists — dir created in build if download failed)
 COPY --from=builder /app/.insightface /app/.insightface
 
 ENV PATH=/root/.local/bin:$PATH \
