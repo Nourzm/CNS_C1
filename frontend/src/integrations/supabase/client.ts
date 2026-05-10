@@ -15,8 +15,12 @@ if (!SUPABASE_PUBLISHABLE_KEY) {
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
+    // Do NOT persist the session across browser tabs/restarts.
+    // This is a sensitive site — every new browser session must re-authenticate.
+    // It also prevents stale localStorage tokens from causing infinite loading
+    // on Render cold starts.
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
   },
 });
