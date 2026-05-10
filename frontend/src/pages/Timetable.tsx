@@ -74,28 +74,7 @@ export default function Timetable() {
     },
   });
 
-  // 3. Deduplicate: one entry per (DOW, start_time) — same slot repeats 16 weeks
-  const schedule = useMemo((): SlotCell[] & { _index: Map<string, SlotCell> } => {
-    const seen = new Map<string, SlotCell>();
-    for (const row of rawSlots) {
-      const dow = new Date(row.session_date).getDay(); // 0=Sun…4=Thu
-      const key = `${dow}-${normaliseTime(row.start_time)}`;
-      if (!seen.has(key)) {
-        seen.set(key, {
-          session_type: row.session_type,
-          location: row.location ?? null,
-          module_code: (row.modules as any)?.module_code ?? '—',
-          group_name: (row.groups as any)?.group_name ?? '—',
-        });
-      }
-    }
-    // Attach the map for O(1) grid lookup
-    const arr = [...seen.values()] as any;
-    arr._index = seen;
-    return arr;
-  }, [rawSlots]);
-
-  // 4. Build grid[day][timeSlot]
+  // 3. Build grid[day][timeSlot]
   const grid = useMemo(() => {
     const result: Record<string, Record<string, SlotCell>> = {};
     DAYS.forEach(d => (result[d] = {}));
