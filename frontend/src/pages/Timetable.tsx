@@ -10,8 +10,10 @@ import { api } from '@/lib/mock-data';
 import type { Session, Module } from '@/types/db';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-// ENSIA standard 1h30 slots — must match start_time values in DB (HH:MM)
-const TIME_SLOTS = ['08:00', '09:30', '11:00', '13:00', '14:30', '16:00'];
+// ENSIA standard 1h30 slots (6 per day) — must match start_time values in DB (HH:MM)
+// S1: 08:30–10:00  S2: 10:10–11:40  S3: 11:50–13:20
+// S4: 13:30–15:00  S5: 15:10–16:40  S6: 16:50–18:20
+const TIME_SLOTS = ['08:30', '10:10', '11:50', '13:30', '15:10', '16:50'];
 
 /** Normalise "HH:MM:SS" or "HH:MM" → "HH:MM" for grid lookup */
 function normaliseTime(t: string): string {
