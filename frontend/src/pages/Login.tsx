@@ -53,11 +53,20 @@ export default function Login() {
 
   if (session) return <Navigate to="/dashboard" replace />;
 
+  const checkIsTeacher = async (userId: string): Promise<boolean> => {
+    const { data } = await supabase
+      .from("teachers")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+    return !!data;
+  };
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
     setLoginError(null);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
       password: loginPassword,
     });
@@ -67,9 +76,21 @@ export default function Login() {
       } else {
         setLoginError(error.message);
       }
-    } else {
-      navigate("/dashboard", { replace: true });
+      setIsLoggingIn(false);
+      return;
     }
+    if (data.user) {
+      const teacher = await checkIsTeacher(data.user.id);
+      if (!teacher) {
+        await supabase.auth.signOut();
+        setLoginError(
+          "Your email is not registered as a teacher. Please contact the administration."
+        );
+        setIsLoggingIn(false);
+        return;
+      }
+    }
+    navigate("/dashboard", { replace: true });
     setIsLoggingIn(false);
   };
 
@@ -117,17 +138,29 @@ export default function Login() {
     e.preventDefault();
     setIsVerifyingOtp(true);
     setOtpError(null);
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       email: signupEmail,
       token: otp,
       type: "email",
     });
-    setIsVerifyingOtp(false);
     if (error) {
       setOtpError(error.message);
-    } else {
-      navigate("/dashboard", { replace: true });
+      setIsVerifyingOtp(false);
+      return;
     }
+    if (data.user) {
+      const teacher = await checkIsTeacher(data.user.id);
+      if (!teacher) {
+        await supabase.auth.signOut();
+        setOtpError(
+          "Your email is not registered as a teacher. Please contact the administration."
+        );
+        setIsVerifyingOtp(false);
+        return;
+      }
+    }
+    navigate("/dashboard", { replace: true });
+    setIsVerifyingOtp(false);
   };
 
   return (
