@@ -10,46 +10,57 @@ import { api } from '@/lib/mock-data';
 import type { Session, Module } from '@/types/db';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-const TIME_SLOTS = [
-  '08:00', '09:40', '11:20', '13:00', '14:40', '16:20'
-];
+// ENSIA standard 1h30 slots — must match start_time values in DB (HH:MM)
+const TIME_SLOTS = ['08:00', '09:30', '11:00', '13:00', '14:30', '16:00'];
+
+/** Normalise "HH:MM:SS" or "HH:MM" → "HH:MM" for grid lookup */
+function normaliseTime(t: string): string {
+  return t.substring(0, 5);
+}
 
 export default function Timetable() {
   const { data: groups = [] } = useQuery({ queryKey: ['groups'], queryFn: api.getGroups });
   const { data: modules = [] } = useQuery({ queryKey: ['modules'], queryFn: api.getModules });
   const { data: sessions = [] } = useQuery({ queryKey: ['sessions'], queryFn: api.getSessions });
 
-  // Filter only Year 3 groups for now as requested
-  const year3Groups = useMemo(() => {
-    return groups.filter(g => g.year === 3).sort((a, b) => a.group_name.localeCompare(b.group_name));
-  }, [groups]);
+  // Available years derived from loaded groups
+  const years = useMemo(
+    () => [...new Set(groups.map(g => g.year))].sort(),
+    [groups],
+  );
+  const [activeYear, setActiveYear] = useState<number | null>(null);
+
+  const yearGroups = useMemo(() => {
+    const y = activeYear ?? years[years.length - 1]; // default to highest year
+    return groups.filter(g => g.year === y).sort((a, b) => a.group_name.localeCompare(b.group_name, undefined, { numeric: true }));
+  }, [groups, activeYear, years]);
 
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
 
-  // Set default active group once loaded
+  // Reset active group when year or group list changes
   useMemo(() => {
-    if (year3Groups.length > 0 && !activeGroup) {
-      setActiveGroup(year3Groups[0].id);
+    if (yearGroups.length > 0) {
+      setActiveGroup(g => (yearGroups.some(yg => yg.id === g) ? g : yearGroups[0].id));
     }
-  }, [year3Groups, activeGroup]);
+  }, [yearGroups]);
 
-  // Build timetable grid for active group
+  // Build timetable grid for active group (most-recent session per day+time wins)
   const grid = useMemo(() => {
     if (!activeGroup) return {};
     const groupSessions = sessions.filter(s => s.group_id === activeGroup);
-    
-    const result: Record<string, Record<string, { session: Session, module: Module }>> = {};
-    DAYS.forEach(d => result[d] = {});
+
+    const result: Record<string, Record<string, { session: Session; module: Module }>> = {};
+    DAYS.forEach(d => (result[d] = {}));
 
     groupSessions.forEach(s => {
       const dateObj = new Date(s.session_date);
-      // getDay: 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday
-      const dayIndex = dateObj.getDay();
+      const dayIndex = dateObj.getDay(); // 0=Sun … 4=Thu
       if (dayIndex >= 0 && dayIndex <= 4) {
         const dayName = DAYS[dayIndex];
         const module = modules.find(m => m.id === s.module_id);
         if (module) {
-          result[dayName][s.start_time] = { session: s, module };
+          const slotKey = normaliseTime(s.start_time); // strip seconds
+          result[dayName][slotKey] = { session: s, module };
         }
       }
     });
@@ -62,7 +73,7 @@ export default function Timetable() {
         <div>
           <h1 className="text-3xl font-bold">Global Timetable</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            View the master schedule for all Third Year groups.
+            Weekly schedule by group — select a year then a group.
           </p>
         </div>
 
@@ -70,15 +81,34 @@ export default function Timetable() {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-xl">
               <Calendar className="w-5 h-5 text-primary" />
-              Third Year Schedule
+              Schedule
             </CardTitle>
+
+            {/* Year selector */}
+            {years.length > 1 && (
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {years.map(y => (
+                  <button
+                    key={y}
+                    onClick={() => setActiveYear(y)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors border ${
+                      (activeYear ?? years[years.length - 1]) === y
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-border text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    Year {y}
+                  </button>
+                ))}
+              </div>
+            )}
           </CardHeader>
           <CardContent>
-            {year3Groups.length > 0 && activeGroup ? (
+            {yearGroups.length > 0 && activeGroup ? (
               <Tabs value={activeGroup} onValueChange={setActiveGroup} className="w-full">
                 <ScrollArea className="w-full max-w-full pb-4">
                   <TabsList className="inline-flex w-max mb-2">
-                    {year3Groups.map((g) => (
+                    {yearGroups.map((g) => (
                       <TabsTrigger key={g.id} value={g.id} className="px-6 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                         {g.group_name}
                       </TabsTrigger>
@@ -87,7 +117,7 @@ export default function Timetable() {
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
 
-                {year3Groups.map((g) => (
+                {yearGroups.map((g) => (
                   <TabsContent key={g.id} value={g.id} className="mt-4">
                     <div className="rounded-xl overflow-hidden border border-border shadow-sm">
                       <div className="overflow-x-auto">
@@ -146,7 +176,9 @@ export default function Timetable() {
                 ))}
               </Tabs>
             ) : (
-              <div className="text-center py-10 text-muted-foreground">Loading groups...</div>
+              <div className="text-center py-10 text-muted-foreground">
+                {groups.length === 0 ? 'Loading groups…' : 'No groups for this year.'}
+              </div>
             )}
           </CardContent>
         </Card>
