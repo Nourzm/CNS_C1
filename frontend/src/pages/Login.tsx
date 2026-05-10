@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Scan, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,13 @@ export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const defaultTab = searchParams.get("tab") === "signup" ? "signup" : "login";
-  const { session } = useAuth();
+  const { session, blockedReason, clearBlockedReason } = useAuth();
+
+  // Show the "not a teacher" message from useAuth, then clear it.
+  useEffect(() => {
+    if (blockedReason) setLoginError(blockedReason);
+    return () => { if (blockedReason) clearBlockedReason(); };
+  }, [blockedReason]);
 
   // login
   const [loginEmail, setLoginEmail] = useState("");
@@ -53,20 +59,11 @@ export default function Login() {
 
   if (session) return <Navigate to="/dashboard" replace />;
 
-  const checkIsTeacher = async (userId: string): Promise<boolean> => {
-    const { data } = await supabase
-      .from("teachers")
-      .select("id")
-      .eq("id", userId)
-      .maybeSingle();
-    return !!data;
-  };
-
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
     setLoginError(null);
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
       password: loginPassword,
     });
@@ -76,21 +73,9 @@ export default function Login() {
       } else {
         setLoginError(error.message);
       }
-      setIsLoggingIn(false);
-      return;
     }
-    if (data.user) {
-      const teacher = await checkIsTeacher(data.user.id);
-      if (!teacher) {
-        await supabase.auth.signOut();
-        setLoginError(
-          "Your email is not registered as a teacher. Please contact the administration."
-        );
-        setIsLoggingIn(false);
-        return;
-      }
-    }
-    navigate("/dashboard", { replace: true });
+    // Teacher check happens automatically in useAuth via onAuthStateChange.
+    // If not a teacher, useAuth signs them out and sets blockedReason.
     setIsLoggingIn(false);
   };
 
@@ -138,28 +123,16 @@ export default function Login() {
     e.preventDefault();
     setIsVerifyingOtp(true);
     setOtpError(null);
-    const { data, error } = await supabase.auth.verifyOtp({
+    const { error } = await supabase.auth.verifyOtp({
       email: signupEmail,
       token: otp,
       type: "email",
     });
     if (error) {
       setOtpError(error.message);
-      setIsVerifyingOtp(false);
-      return;
     }
-    if (data.user) {
-      const teacher = await checkIsTeacher(data.user.id);
-      if (!teacher) {
-        await supabase.auth.signOut();
-        setOtpError(
-          "Your email is not registered as a teacher. Please contact the administration."
-        );
-        setIsVerifyingOtp(false);
-        return;
-      }
-    }
-    navigate("/dashboard", { replace: true });
+    // Teacher check happens automatically in useAuth via onAuthStateChange.
+    // If not a teacher, useAuth signs them out and sets blockedReason.
     setIsVerifyingOtp(false);
   };
 
