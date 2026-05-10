@@ -3,47 +3,63 @@ FROM python:3.11-slim as builder
 
 WORKDIR /app
 
-# Install system dependencies
+# System deps needed to build/install packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libopencv-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install
+# Install Python deps
 COPY backend/requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application code + models
 COPY backend/ /app/backend/
 COPY ai/ /app/ai/
 COPY config/ /app/config/
 
-# Runtime stage
+# Pre-download InsightFace buffalo_sc at build time (~50 MB, fits free tier RAM).
+# buffalo_l (~280 MB) OOM-kills a 512 MB container; buffalo_sc is the right choice.
+ENV INSIGHTFACE_HOME=/app/.insightface
+RUN python - <<'EOF'
+try:
+    from insightface.app import FaceAnalysis
+    a = FaceAnalysis(name="buffalo_sc", providers=["CPUExecutionProvider"])
+    a.prepare(ctx_id=0, det_size=(640, 640))
+    print("buffalo_sc pre-downloaded OK")
+except Exception as e:
+    print(f"pre-download failed (will retry at runtime): {e}")
+EOF
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install runtime dependencies only
+# Runtime system libs for OpenCV + InsightFace
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy python packages from builder
+# Python packages from builder
 COPY --from=builder /root/.local /root/.local
 
-# Copy application code
-COPY backend/ /app/backend/
-COPY ai/ /app/ai/
-COPY config/ /app/config/
+# Application code
+COPY --from=builder /app/backend/ /app/backend/
+COPY --from=builder /app/ai/      /app/ai/
+COPY --from=builder /app/config/  /app/config/
 
-# Set environment variables
+# Pre-downloaded InsightFace model cache
+COPY --from=builder /app/.insightface /app/.insightface
+
 ENV PATH=/root/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
-    PORT=8000
+    PORT=8000 \
+    INSIGHTFACE_HOME=/app/.insightface
 
 EXPOSE 8000
 
-# Change to backend directory and run FastAPI
 WORKDIR /app/backend
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

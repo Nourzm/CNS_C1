@@ -8,37 +8,40 @@ from services.db_service import knn_search
 log = logging.getLogger("face_service")
 log.setLevel(logging.INFO)
 
+# buffalo_sc: ~50 MB download, ~150 MB RAM — fits Render free tier (512 MB).
+# buffalo_l : ~280 MB download, ~500 MB RAM — OOM-kills the free-tier container.
+_MODEL_NAME = "buffalo_sc"
+
 _app = None
 _load_err: Optional[str] = None
 _load_lock = threading.Lock()
-_load_started = False
+_load_done = False   # True once a load attempt finished (success or error)
 
 
 def _ensure_loaded():
-    global _app, _load_err, _load_started
-    if _app is not None or MOCK_AI or _load_err is not None:
+    global _app, _load_err, _load_done
+    if MOCK_AI:
+        return
+    # Fast path — already finished (success or permanent error)
+    if _load_done:
         return
     with _load_lock:
-        if _app is not None or MOCK_AI or _load_err is not None:
+        if _load_done:
             return
-        if _load_started:
-            return
-        _load_started = True
         try:
-            log.info("Loading InsightFace buffalo_l (first call may take a while — downloads ~280MB)...")
+            log.info("Loading InsightFace %s (~50 MB download on first run)…", _MODEL_NAME)
             from insightface.app import FaceAnalysis
-            log.info("  → Instantiating FaceAnalysis...")
-            a = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-            log.info("  → Calling prepare(ctx_id=0, det_size=(640, 640))...")
+            a = FaceAnalysis(name=_MODEL_NAME, providers=["CPUExecutionProvider"])
             a.prepare(ctx_id=0, det_size=(640, 640))
-            log.info("  → Prepare complete, model ready")
             _app = a
-            log.info("✓ InsightFace loaded OK")
+            log.info("✓ InsightFace %s loaded OK", _MODEL_NAME)
         except Exception as e:
             import traceback
             _load_err = repr(e)
             log.error("✗ InsightFace load failed: %s", _load_err)
             log.error("Traceback:\n%s", traceback.format_exc())
+        finally:
+            _load_done = True
 
 
 def face_service_status():
@@ -53,9 +56,6 @@ def face_service_status():
 
 def get_embedding(img) -> Optional[np.ndarray]:
     if MOCK_AI:
-        # Deterministic per-image — same image -> same vector. Different
-        # images of same person -> DIFFERENT vectors, so recognition
-        # can't work in mock mode. That's by design.
         seed = int(np.asarray(img).sum()) & 0xFFFFFFFF
         rng = np.random.default_rng(seed)
         v = rng.standard_normal(512).astype(np.float32)
