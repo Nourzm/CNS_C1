@@ -53,27 +53,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await checkTeacher(session.user);
-      } else {
-        setIsTeacher(null);
-      }
-      setLoading(false);
-    });
-
+    // Use ONLY onAuthStateChange — it fires immediately with INITIAL_SESSION
+    // so there's no need for a separate getSession() call. Having both causes
+    // checkTeacher to run twice concurrently, and if either throws the loading
+    // spinner never goes away.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        if (session?.user) {
-          await checkTeacher(session.user);
-        } else {
+        try {
+          if (session?.user) {
+            await checkTeacher(session.user);
+          } else {
+            setIsTeacher(null);
+          }
+        } catch (err) {
+          console.error("checkTeacher error:", err);
           setIsTeacher(null);
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
