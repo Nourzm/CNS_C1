@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -90,7 +91,28 @@ export default function ScheduleSessionsTab({ groups = [], modules = [] }: Sched
   const selectedDateTime = sessionDate ? new Date(`${sessionDate}T${startTime}:00`) : null;
   const isPast = !!selectedDateTime && selectedDateTime < new Date();
 
-  const isFormValid = !!selectedModuleId && !!selectedGroupId && !!sessionDate && !!startTime && !isPast;
+  // Conflict check: does this group already have a session at the chosen date + slot?
+  const conflictCheckEnabled = !!selectedGroupId && !!sessionDate && !!startTime;
+  const { data: conflict } = useQuery({
+    queryKey: ['session-conflict', selectedGroupId, sessionDate, startTime],
+    enabled: conflictCheckEnabled,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('sessions')
+        .select(`
+          id, session_type,
+          modules!sessions_module_id_fkey(module_code),
+          teachers!sessions_teacher_id_fkey(full_name)
+        `)
+        .eq('group_id', selectedGroupId!)
+        .eq('session_date', sessionDate)
+        .eq('start_time', startTime)
+        .maybeSingle();
+      return data ?? null;
+    },
+  });
+
+  const isFormValid = !!selectedModuleId && !!selectedGroupId && !!sessionDate && !!startTime && !isPast && !conflict;
 
   const createSessionMut = useMutation({
     mutationFn: async () => {
@@ -232,6 +254,17 @@ export default function ScheduleSessionsTab({ groups = [], modules = [] }: Sched
               {isPast
                 ? '⚠ This date and time is in the past.'
                 : `✓ ${selectedDateTime?.toLocaleString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+            </div>
+          )}
+
+          {/* Conflict warning */}
+          {conflict && (
+            <div className="col-span-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <span className="font-semibold">Slot already taken — </span>
+                {`This group already has ${(conflict.modules as any)?.module_code ?? 'a session'} (${conflict.session_type}) by ${(conflict.teachers as any)?.full_name ?? 'another teacher'} at this time slot. Please choose a different time.`}
+              </div>
             </div>
           )}
         </div>
