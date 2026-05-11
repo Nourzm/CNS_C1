@@ -221,7 +221,7 @@ function AdminView() {
 }
 
 // ---------- Teacher view: personal schedule ----------
-function TeacherView({ teacherId, teacherName }: { teacherId: string; teacherName: string }) {
+function TeacherView({ teacherId }: { teacherId: string }) {
   const { data: rawSlots = [], isPending: slotsLoading } = useQuery({
     queryKey: ['teacher-schedule', teacherId],
     queryFn: async () => {
@@ -311,7 +311,7 @@ export default function Timetable() {
             ) : isAdmin ? (
               <AdminView />
             ) : (
-              <TeacherView teacherId={teacher.id} teacherName={teacher.full_name} />
+              <TeacherView teacherId={teacher.id} />
             )}
           </CardContent>
         </Card>
