@@ -252,18 +252,27 @@ function TeacherView({ teacherId, teacherName }: { teacherId: string; teacherNam
 export default function Timetable() {
   const { user } = useAuth();
 
-  // Resolve teacher record (includes role)
+  // Resolve teacher record (includes role) — match by auth_user_id (uid) first,
+  // fall back to email so first-login linking still works.
   const { data: teacher, isPending: teacherLoading } = useQuery({
-    queryKey: ['teacher-by-email', user?.email],
-    enabled: !!user?.email,
+    queryKey: ['teacher-by-uid', user?.id],
+    enabled: !!user?.id,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Try auth_user_id first (works after first login link)
+      const { data: byUid } = await supabase
+        .from('teachers')
+        .select('id, full_name, role')
+        .eq('auth_user_id', user!.id)
+        .maybeSingle();
+      if (byUid) return byUid;
+      // Fallback to email (handles first login before useAuth links auth_user_id)
+      const { data: byEmail, error } = await supabase
         .from('teachers')
         .select('id, full_name, role')
         .eq('email', user!.email!)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      return byEmail;
     },
   });
 
