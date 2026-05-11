@@ -29,6 +29,7 @@ import TeachersList from "./pages/TeachersList";
 import ModulesList from "./pages/ModulesList";
 import Assignments from "./pages/Assignments";
 import Timetable from "./pages/Timetable";
+import ScheduleSession from "./pages/ScheduleSession";
 import StudentProfile from "./pages/StudentProfile";
 import AttendanceHistory from "./pages/AttendanceHistory";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
@@ -78,6 +79,7 @@ const App = () => (
                 <Route path="/students" element={<StudentsList />} />
                 <Route path="/teachers" element={<TeachersList />} />
                 <Route path="/timetable" element={<Timetable />} />
+                <Route path="/schedule" element={<ScheduleSession />} />
                 <Route path="/assignments" element={<Assignments />} />
                 <Route
                   path="/students/register"

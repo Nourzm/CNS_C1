@@ -27,6 +27,7 @@ import {
   History,
   Activity,
   CalendarDays,
+  CalendarPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -87,6 +88,7 @@ function AppSidebarContent({ role }: { role?: string | null }) {
       show: isAdmin || isLecturer,
     },
     { title: "Timetable", url: "/timetable", icon: CalendarDays, show: true },
+    { title: "Schedule Session", url: "/schedule", icon: CalendarPlus, show: isTeacher && !isAdmin },
   ].filter((i) => i.show);
 
   const securityItems = [
@@ -94,7 +96,7 @@ function AppSidebarContent({ role }: { role?: string | null }) {
       title: "Assignments",
       url: "/assignments",
       icon: Activity,
-      show: isAdmin || isLecturer || isTeacher,
+      show: isAdmin || isLecturer,
     },
     { title: "Security", url: "/security", icon: ShieldAlert, show: true },
     {
