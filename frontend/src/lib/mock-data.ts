@@ -219,9 +219,11 @@ export const api = {
     const teacher = await getCurrentTeacher();
     if (!teacher || teacher.role === 'admin') return fetchAll('groups', adaptGroup);
 
-    const [groupsAll, mgRows] = await Promise.all([
+    const [groupsAll, mgRows, sessRows] = await Promise.all([
       fetchAll<Group>('groups', adaptGroup),
       supabase.from('module_groups').select('group_id, module_id, assigned_teacher_id'),
+      // Also pick up groups via direct session assignments (sessions.teacher_id)
+      supabase.from('sessions').select('group_id').eq('teacher_id', teacher.id),
     ]);
 
     if (mgRows.error) {
@@ -236,6 +238,10 @@ export const api = {
       } else if ((row as any).assigned_teacher_id === teacher.id) {
         groupIds.add((row as any).group_id);
       }
+    }
+    // Include groups from sessions directly assigned to this teacher
+    for (const row of sessRows.data ?? []) {
+      groupIds.add((row as any).group_id);
     }
     return groupsAll.filter((g) => groupIds.has(g.id));
   },
