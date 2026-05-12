@@ -10,7 +10,7 @@ export default function ScheduleSession() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('groups')
-        .select('id, group_name, year')
+        .select('id, group_name, year, created_at')
         .order('year')
         .order('group_name');
       if (error) throw error;
@@ -23,7 +23,7 @@ export default function ScheduleSession() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('modules')
-        .select('id, module_code, module_name')
+        .select('id, module_code, module_name, lecturer_id, created_at')
         .order('module_code');
       if (error) throw error;
       return data ?? [];
