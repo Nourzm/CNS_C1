@@ -50,8 +50,12 @@ function AppSidebarContent({ role }: { role?: string | null }) {
   const isActive = (path: string) => location.pathname === path;
 
   const handleLogout = async () => {
-    await signOut();
-    navigate("/", { replace: true });
+    try {
+      await signOut();
+    } catch (_) {
+      // ignore signOut errors — clear local state regardless
+    }
+    navigate("/login", { replace: true });
   };
 
   const isAdmin = role === "admin";
