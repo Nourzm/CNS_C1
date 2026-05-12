@@ -189,8 +189,9 @@ function buildSessionRow(
   };
 }
 
-function getDemoToday(sessions: Session[]): string {
-  return sessions.reduce((acc, s) => (s.session_date > acc ? s.session_date : acc), '');
+function getDemoToday(_sessions: Session[]): string {
+  // Always use real today so live-attendance sessions match the actual date
+  return new Date().toISOString().slice(0, 10);
 }
 
 export interface DashboardFilters {
