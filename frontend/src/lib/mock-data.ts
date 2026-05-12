@@ -532,35 +532,44 @@ export const api = {
   },
 
   async getSessionDetail(sessionId: string): Promise<SessionDetail | null> {
-    const [{ data: sRow }, modulesAll, groupsAll, studentsAll, sgRows, attRows] = await Promise.all([
-      supabase.from('sessions').select('*').eq('id', sessionId).maybeSingle(),
-      fetchAll<Module>('modules', adaptModule),
-      fetchAll<Group>('groups', adaptGroup),
-      fetchAll<Student>('students', adaptStudent),
-      supabase.from('student_groups').select('student_id, group_id'),
+    // All queries are targeted — no full-table scans.
+    const { data: sRow } = await supabase
+      .from('sessions')
+      .select(`*, modules:modules!sessions_module_id_fkey(*), groups:groups!sessions_group_id_fkey(*)`)
+      .eq('id', sessionId)
+      .maybeSingle();
+    if (!sRow) return null;
+
+    const sess = adaptSession(sRow as any);
+    const mod  = adaptModule((sRow as any).modules ?? {});
+    const grp  = adaptGroup((sRow as any).groups ?? {});
+
+    // Fetch only students in this group (not the whole students table)
+    const [sgRows, attRows] = await Promise.all([
+      supabase
+        .from('student_groups')
+        .select('student_id, students!student_groups_student_id_fkey(id, full_name, student_number, photo_url, created_at)')
+        .eq('group_id', sess.group_id),
       supabase.from('attendance').select('*').eq('session_id', sessionId),
     ]);
-    if (!sRow) return null;
-    const sess = adaptSession(sRow);
-    const mod = modulesAll.find((m) => m.id === sess.module_id)!;
-    const grp = groupsAll.find((g) => g.id === sess.group_id)!;
-    const inGroup = (sgRows.data ?? [])
-      .filter((r: any) => r.group_id === sess.group_id)
-      .map((r: any) => r.student_id);
-    const sessAtt = (attRows.data ?? []).map(adaptAttendance);
+
+    const sessAtt = ((attRows.data ?? []) as any[]).map(adaptAttendance);
     const byStudent = new Map(sessAtt.map((a) => [a.student_id, a]));
-    const roster: RosterEntry[] = inGroup.map((sid: string) => {
-      const a = byStudent.get(sid);
+    const roster: RosterEntry[] = ((sgRows.data ?? []) as any[]).map((r) => {
+      const stu = r.students ? adaptStudent(r.students) : null;
+      if (!stu) return null;
+      const a = byStudent.get(r.student_id);
       return {
-        student: studentsAll.find((s) => s.id === sid)!,
+        student: stu,
         status: (a?.status ?? 'not_marked') as RosterEntry['status'],
         confidence: a?.confidence ?? null,
         marked_at: a?.marked_at ?? null,
       };
-    }).filter((r) => r.student);
+    }).filter(Boolean) as RosterEntry[];
+
     const present = roster.filter((r) => r.status === 'present').length;
-    const absent = roster.filter((r) => r.status === 'absent').length;
-    const spoof = roster.filter((r) => r.status === 'spoof').length;
+    const absent  = roster.filter((r) => r.status === 'absent').length;
+    const spoof   = roster.filter((r) => r.status === 'spoof').length;
     return {
       session: sess, module: mod, group: grp, roster,
       present_count: present, absent_count: absent, spoof_count: spoof,
@@ -570,43 +579,73 @@ export const api = {
 
   async getTodaySessions(): Promise<SessionRow[]> {
     const teacher = await getCurrentTeacher();
-    const scope = await getTeacherScope(teacher);
-    const [sessionsAll, modulesAll, groupsAll, attendanceAll] = await Promise.all([
-      fetchAll<Session>('sessions', adaptSession),
-      fetchAll<Module>('modules', adaptModule),
-      fetchAll<Group>('groups', adaptGroup),
-      fetchAll<Attendance>('attendance', adaptAttendance),
-    ]);
-    const today = getDemoToday(sessionsAll);
-    return sessionsAll.filter((s) => s.session_date === today).filter(scope.sessionFilter)
-      .sort((a, b) => a.start_time.localeCompare(b.start_time))
-      .map((s) => buildSessionRow(s, modulesAll, groupsAll, attendanceAll));
+    const today = getDemoToday([]);
+
+    // Build teacher scope OR filter so we only pull rows the teacher owns —
+    // avoids the full-table RLS scan (can_see_module per row → 500).
+    let teacherOrFilter: string | null = null;
+    if (teacher && teacher.role !== 'admin') {
+      const { data: mgData } = await supabase
+        .from('module_groups')
+        .select('module_id, group_id')
+        .eq('assigned_teacher_id', teacher.id);
+
+      // direct teacher_id assignment  OR  module_groups combo
+      const parts: string[] = [`teacher_id.eq.${teacher.id}`];
+      for (const mg of mgData ?? []) {
+        parts.push(`and(module_id.eq.${(mg as any).module_id},group_id.eq.${(mg as any).group_id})`);
+      }
+      teacherOrFilter = parts.join(',');
+    }
+
+    // Single targeted query: today's sessions + embedded module/group rows
+    let query = supabase
+      .from('sessions')
+      .select(`*, modules:modules!sessions_module_id_fkey(*), groups:groups!sessions_group_id_fkey(*)`)
+      .eq('session_date', today)
+      .order('start_time');
+
+    if (teacherOrFilter) {
+      query = (query as any).or(teacherOrFilter);
+    }
+
+    const { data, error } = await query;
+    if (error) { console.error('getTodaySessions', error); return []; }
+
+    return (data ?? []).map((row: any): SessionRow => ({
+      session: adaptSession(row),
+      module: adaptModule(row.modules ?? {}),
+      group: adaptGroup(row.groups ?? {}),
+      total_students: 0,
+      present_count: 0,
+      absent_count: 0,
+      attendance_rate: 0,
+    }));
   },
 
   async getLiveSession() {
-    const teacher = await getCurrentTeacher();
-    const scope = await getTeacherScope(teacher);
-    const [sessionsAll, attendanceAll, modulesAll, groupsAll, studentsAll] = await Promise.all([
-      fetchAll<Session>('sessions', adaptSession),
-      fetchAll<Attendance>('attendance', adaptAttendance),
-      fetchAll<Module>('modules', adaptModule),
-      fetchAll<Group>('groups', adaptGroup),
-      fetchAll<Student>('students', adaptStudent),
-    ]);
-    const today = getDemoToday(sessionsAll);
-    const todayRows = sessionsAll.filter((s) => s.session_date === today).filter(scope.sessionFilter)
-      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+    // Reuse getTodaySessions (already targeted/scoped) to pick the "live" session
+    const todayRows = await api.getTodaySessions();
     if (todayRows.length === 0) return null;
-    const liveSess = todayRows[Math.floor(todayRows.length / 2)] ?? todayRows[0];
-    const sessAtt = attendanceAll.filter((a) => a.session_id === liveSess.id);
+    const liveRow = todayRows[Math.floor(todayRows.length / 2)] ?? todayRows[0];
+    const sessId = liveRow.session.id;
+
+    // Fetch attendance only for this one session — no full table scan
+    const { data: attData } = await supabase
+      .from('attendance')
+      .select('*, students!attendance_student_id_fkey(id, full_name, student_number, photo_url)')
+      .eq('session_id', sessId);
+
+    const sessAtt = (attData ?? []) as any[];
     const recognizedAtt = sessAtt.filter((a) => a.status === 'present' || a.status === 'spoof');
     const last = recognizedAtt.slice(-5).reverse().map((a) => ({
-      student: studentsAll.find((s) => s.id === a.student_id)!,
+      student: a.students ? adaptStudent(a.students) : null,
       confidence: a.confidence ?? 0,
       at: a.marked_at,
     })).filter((x) => x.student);
+
     return {
-      row: buildSessionRow(liveSess, modulesAll, groupsAll, attendanceAll),
+      row: liveRow,
       recognized: recognizedAtt.length,
       total: sessAtt.length,
       last_recognized: last,
