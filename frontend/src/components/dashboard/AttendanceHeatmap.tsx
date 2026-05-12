@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { HeatmapCell } from '@/types/db';
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']; // ENSIA workweek
 
 function cellColor(rate: number | undefined): string {
   if (rate === undefined) return 'bg-muted/30';

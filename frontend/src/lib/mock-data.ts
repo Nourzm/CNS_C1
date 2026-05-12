@@ -144,10 +144,17 @@ async function getTeacherScope(teacher: Teacher | null) {
   };
   if (teacher && teacher.role !== 'admin') {
     scope.isTeacher = true;
-    const { data } = await supabase.from('module_groups').select('module_id, group_id').eq('assigned_teacher_id', teacher.id);
-    for (const mg of data ?? []) {
+    // 1. module_groups assignments (lecturer-style teachers)
+    const { data: mgData } = await supabase.from('module_groups').select('module_id, group_id').eq('assigned_teacher_id', teacher.id);
+    for (const mg of mgData ?? []) {
       scope.myGroupIds.add((mg as any).group_id);
       scope.myModuleIds.add((mg as any).module_id);
+    }
+    // 2. sessions.teacher_id assignments (covers teachers without module_groups entries)
+    const { data: sessData } = await supabase.from('sessions').select('module_id, group_id').eq('teacher_id', teacher.id);
+    for (const s of sessData ?? []) {
+      scope.myGroupIds.add((s as any).group_id);
+      scope.myModuleIds.add((s as any).module_id);
     }
     scope.sessionFilter = (s: Session) => scope.myModuleIds.has(s.module_id) && scope.myGroupIds.has(s.group_id);
   }
@@ -396,8 +403,9 @@ export const api = {
     const buckets = new Map<string, { present: number; total: number; sessions: number }>();
     for (const sess of fs) {
       const d = new Date(sess.session_date);
-      const dow = (d.getUTCDay() + 6) % 7;
-      if (dow > 5) continue;
+      const jsDay = d.getUTCDay(); // 0=Sun, 1=Mon, …, 6=Sat
+      if (jsDay === 5 || jsDay === 6) continue; // skip Fri & Sat (ENSIA workweek: Sun–Thu)
+      const dow = jsDay; // Sun=0, Mon=1, Tue=2, Wed=3, Thu=4
       const key = `${dow}|${sess.start_time}`;
       const att = attendanceAll.filter((a) => a.session_id === sess.id);
       const b = buckets.get(key) ?? { present: 0, total: 0, sessions: 0 };
