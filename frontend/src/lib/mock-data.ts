@@ -219,31 +219,26 @@ export const api = {
     const teacher = await getCurrentTeacher();
     if (!teacher || teacher.role === 'admin') return fetchAll('groups', adaptGroup);
 
-    const [groupsAll, mgRows, sessRows] = await Promise.all([
-      fetchAll<Group>('groups', adaptGroup),
-      supabase.from('module_groups').select('group_id, module_id, assigned_teacher_id'),
-      // Also pick up groups via direct session assignments (sessions.teacher_id)
+    // Both queries are targeted (filtered) — no full-table RLS scan.
+    const [mgRows, sessRows] = await Promise.all([
+      supabase.from('module_groups').select('group_id').eq('assigned_teacher_id', teacher.id),
       supabase.from('sessions').select('group_id').eq('teacher_id', teacher.id),
     ]);
 
-    if (mgRows.error) {
-      console.error('module_groups visible groups', mgRows.error);
-      return [];
-    }
-
     const groupIds = new Set<string>();
-    for (const row of mgRows.data ?? []) {
-      if (teacher.role === 'lecturer') {
-        groupIds.add((row as any).group_id);
-      } else if ((row as any).assigned_teacher_id === teacher.id) {
-        groupIds.add((row as any).group_id);
-      }
-    }
-    // Include groups from sessions directly assigned to this teacher
-    for (const row of sessRows.data ?? []) {
-      groupIds.add((row as any).group_id);
-    }
-    return groupsAll.filter((g) => groupIds.has(g.id));
+    for (const row of mgRows.data ?? []) groupIds.add((row as any).group_id);
+    for (const row of sessRows.data ?? []) groupIds.add((row as any).group_id);
+
+    if (groupIds.size === 0) return [];
+
+    // Fetch only the specific groups we need, not the whole table.
+    const { data: groupData, error } = await supabase
+      .from('groups')
+      .select('*')
+      .in('id', Array.from(groupIds));
+
+    if (error) { console.error('getVisibleGroups', error); return []; }
+    return (groupData ?? []).map(adaptGroup);
   },
 
   async getSessions(): Promise<Session[]> {
