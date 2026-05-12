@@ -98,7 +98,7 @@ function AppSidebarContent({ role }: { role?: string | null }) {
       icon: Activity,
       show: isAdmin || isLecturer,
     },
-    { title: "Security", url: "/security", icon: ShieldAlert, show: true },
+    { title: "Security", url: "/security", icon: ShieldAlert, show: false },
     {
       title: "Spoof log",
       url: "/security/spoof-log",
